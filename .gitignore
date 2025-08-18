@@ -10,3 +10,7 @@ __pycache__/
 /runs/
 /torch1.7.1/
 by_chu/cifar-10-python.tar.gz
+
+*.raw
+
+.DS_Store
