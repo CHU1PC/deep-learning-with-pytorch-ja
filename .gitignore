@@ -14,3 +14,6 @@ by_chu/cifar-10-python.tar.gz
 *.raw
 
 .DS_Store
+
+*.val
+*.db*
