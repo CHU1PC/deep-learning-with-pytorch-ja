@@ -147,6 +147,7 @@ class Ct:
         return ct_chunk, center_irc
 
 
+@functools.lru_cache(1, typed=True)
 def getCt(series_uid):
     return Ct(series_uid)
 
@@ -192,19 +193,20 @@ class LunaDataset(Dataset):
 
     def __getitem__(self, ndx):
         candidateInfo_tup = self.candidateInfo_list[ndx]
-        width_irc = (32, 48, 48)
+        width_irc = (32, 48, 48)  # IRCを32, 48, 48に整形する
 
         candidate_a, center_irc = getCtRawCandidate(
             candidateInfo_tup.series_uid,
             candidateInfo_tup.center_xyz,
             width_irc,
-        )
+        )  # 各series_uidに対応する各結節の周りをclipingする
 
         candidate_t = torch.from_numpy(candidate_a)
         candidate_t = candidate_t.to(torch.float32)
-        candidate_t = candidate_t.unsqueeze(0)
+        candidate_t = candidate_t.unsqueeze(0)  # batch sizeを追加
 
         pos_t = torch.tensor([
+                # cross entropy lossは1つのクラスに対して1つの出力が必要なため
                 not candidateInfo_tup.isNodule_bool,
                 candidateInfo_tup.isNodule_bool
             ],

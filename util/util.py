@@ -16,13 +16,15 @@ log.setLevel(logging.DEBUG)
 IrcTuple = collections.namedtuple('IrcTuple', ['index', 'row', 'col'])
 XyzTuple = collections.namedtuple('XyzTuple', ['x', 'y', 'z'])
 
+
 def irc2xyz(coord_irc, origin_xyz, vxSize_xyz, direction_a):
-    cri_a = np.array(coord_irc)[::-1]
-    origin_a = np.array(origin_xyz)
-    vxSize_a = np.array(vxSize_xyz)
+    cri_a = np.array(coord_irc)[::-1]  # ircをcriに変換する
+    origin_a = np.array(origin_xyz)  # 原点を取得
+    vxSize_a = np.array(vxSize_xyz)  # サイズ比を取得
     coords_xyz = (direction_a @ (cri_a * vxSize_a)) + origin_a
     # coords_xyz = (direction_a @ (idx * vxSize_a)) + origin_a
     return XyzTuple(*coords_xyz)
+
 
 def xyz2irc(coord_xyz, origin_xyz, vxSize_xyz, direction_a):
     origin_a = np.array(origin_xyz)
