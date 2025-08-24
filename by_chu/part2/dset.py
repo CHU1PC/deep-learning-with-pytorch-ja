@@ -36,12 +36,16 @@ def getCandidateInfoList(requireOnDisk_bool=True):
     # We construct a set with all series_uids that are present on disk.
     # This will let us use the data, even if we haven't downloaded all of
     # the subsets yet.
-    mhd_list = glob.glob('../Luna16/subset*/*.mhd')
+    LUNAPATH = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                            "Luna16")
+    mhd_list = glob.glob(os.path.join(LUNAPATH, "subset*", "subset*", "*.mhd"))
+    # print("\n".join(mhd_list))
     # .mhdを消した*だけに対応するファイル名を格納する
     presentOnDisk_set = {os.path.split(p)[-1][:-4] for p in mhd_list}
 
     diameter_dict = {}
-    with open('../Luna16/annotations.csv', "r") as f:
+    with open(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                           "Luna16", "annotations.csv"), "r") as f:
         for row in list(csv.reader(f))[1:]:  # 最初の一行目はヘッダーのため
             series_uid = row[0]
             annotationCenter_xyz = tuple([float(x) for x in row[1:4]])
@@ -55,13 +59,15 @@ def getCandidateInfoList(requireOnDisk_bool=True):
 
     candidateInfo_list = []
     # candidates.csvに
-    with open('../Luna16/candidates.csv', "r") as f:
+    with open(os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                           "Luna16", "candidates.csv"), "r") as f:
         for row in list(csv.reader(f))[1:]:
             series_uid = row[0]
 
             # ファイルの名前(uid)のlistの中にseries_uidがなく、
             # requireOnDisk_bool(ディスク上にデータがある必要がある)がTrueのときcontinueする
             if series_uid not in presentOnDisk_set and requireOnDisk_bool:
+                # print("series_uid not in presentOndisk_set")
                 continue
 
             isNodule_bool = bool(int(row[4]))
@@ -86,6 +92,7 @@ def getCandidateInfoList(requireOnDisk_bool=True):
                 series_uid,
                 candidateCenter_xyz,
             ))
+            # print("candidate append")
 
     candidateInfo_list.sort(reverse=True)
     return candidateInfo_list
@@ -94,7 +101,7 @@ def getCandidateInfoList(requireOnDisk_bool=True):
 class Ct:
     def __init__(self, series_uid):
         mhd_path = glob.glob(
-            f'../Luna16/subset*/{series_uid}.mhd'
+            f'../Luna16/subset*/subset*/{series_uid}.mhd'
         )[0]
 
         ct_mhd = sitk.ReadImage(mhd_path)
@@ -195,6 +202,7 @@ class LunaDataset(Dataset):
         candidateInfo_tup = self.candidateInfo_list[ndx]
         width_irc = (32, 48, 48)  # IRCを32, 48, 48に整形する
 
+        # diskcache.Cache().memorize()で指定ファイルに保存する
         candidate_a, center_irc = getCtRawCandidate(
             candidateInfo_tup.series_uid,
             candidateInfo_tup.center_xyz,
