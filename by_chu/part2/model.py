@@ -5,13 +5,6 @@ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 import torch.nn.functional as F
 from torch import nn as nn
 
-from util.logconf import logging
-
-log = logging.getLogger(__name__)
-# log.setLevel(logging.WARN)
-# log.setLevel(logging.INFO)
-log.setLevel(logging.DEBUG)
-
 
 class LunaModel(nn.Module):
     def __init__(self, in_channels=1, conv_channels=8):
@@ -83,5 +76,5 @@ class LunaBlock(nn.Module):
         block_out = F.relu(block_out)
         block_out = self.conv2(block_out)
         block_out = F.relu(block_out)
-        block_out = F.max_pool3d(block_out, kernel_size=2, stride=2)
+        block_out = F.avg_pool3d(block_out, kernel_size=2, stride=2)
         return block_out

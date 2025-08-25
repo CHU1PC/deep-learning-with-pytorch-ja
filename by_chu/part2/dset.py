@@ -1,9 +1,9 @@
-import random
 import copy
 import csv
 import functools
 import glob
 import os
+import random
 
 from collections import namedtuple
 
@@ -23,12 +23,15 @@ log = logging.getLogger(__name__)
 # log.setLevel(logging.INFO)
 log.setLevel(logging.DEBUG)
 
-raw_cache = getCache('part2ch10_raw')
+raw_cache = getCache('part2ch11_raw')
+LUNA16 = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "Luna16"
+    )
 
 CandidateInfoTuple = namedtuple(
     'CandidateInfoTuple',
-    'isNodule_bool diameter_mm series_uid center_xyz',
-)  # 最終的に得たいデータ
+    'isNodule_bool, diameter_mm, series_uid, center_xyz',
+)
 
 
 @functools.lru_cache(1)
@@ -36,38 +39,26 @@ def getCandidateInfoList(requireOnDisk_bool=True):
     # We construct a set with all series_uids that are present on disk.
     # This will let us use the data, even if we haven't downloaded all of
     # the subsets yet.
-    LUNAPATH = os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                            "Luna16")
-    mhd_list = glob.glob(os.path.join(LUNAPATH, "subset*", "subset*", "*.mhd"))
-    # print("\n".join(mhd_list))
-    # .mhdを消した*だけに対応するファイル名を格納する
+    mhd_list = glob.glob(os.path.join(LUNA16, "subset*", "subset*", "*.mhd"))
     presentOnDisk_set = {os.path.split(p)[-1][:-4] for p in mhd_list}
 
     diameter_dict = {}
-    with open(os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                           "Luna16", "annotations.csv"), "r") as f:
-        for row in list(csv.reader(f))[1:]:  # 最初の一行目はヘッダーのため
+    with open(os.path.join(LUNA16, "annotations.csv"), "r") as f:
+        for row in list(csv.reader(f))[1:]:
             series_uid = row[0]
             annotationCenter_xyz = tuple([float(x) for x in row[1:4]])
             annotationDiameter_mm = float(row[4])
 
-            # setdefaultでもしseries_uidがdiameter_dictにない場合は[]で初期化する
-            diameter_dict.setdefault(series_uid, [])
-            # setdefaultでseries_uidに対応するものがlistのためappendができる
-            diameter_dict[series_uid].append(
-                (annotationCenter_xyz, annotationDiameter_mm))
+            diameter_dict.setdefault(series_uid, []).append(
+                (annotationCenter_xyz, annotationDiameter_mm),
+            )
 
     candidateInfo_list = []
-    # candidates.csvに
-    with open(os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                           "Luna16", "candidates.csv"), "r") as f:
+    with open(os.path.join(LUNA16, 'candidates.csv'), "r") as f:
         for row in list(csv.reader(f))[1:]:
             series_uid = row[0]
 
-            # ファイルの名前(uid)のlistの中にseries_uidがなく、
-            # requireOnDisk_bool(ディスク上にデータがある必要がある)がTrueのときcontinueする
             if series_uid not in presentOnDisk_set and requireOnDisk_bool:
-                # print("series_uid not in presentOndisk_set")
                 continue
 
             isNodule_bool = bool(int(row[4]))
@@ -77,9 +68,7 @@ def getCandidateInfoList(requireOnDisk_bool=True):
             for annotation_tup in diameter_dict.get(series_uid, []):
                 annotationCenter_xyz, annotationDiameter_mm = annotation_tup
                 for i in range(3):
-                    # candidates.csvとannotation.csvのxyzは多少異なるため、その差が大きすぎないか
                     delta_mm = abs(candidateCenter_xyz[i] - annotationCenter_xyz[i])
-                    # 差が直径の1/4倍よりも大きい場合は
                     if delta_mm > annotationDiameter_mm / 4:
                         break
                 else:
@@ -92,7 +81,6 @@ def getCandidateInfoList(requireOnDisk_bool=True):
                 series_uid,
                 candidateCenter_xyz,
             ))
-            # print("candidate append")
 
     candidateInfo_list.sort(reverse=True)
     return candidateInfo_list
@@ -101,7 +89,7 @@ def getCandidateInfoList(requireOnDisk_bool=True):
 class Ct:
     def __init__(self, series_uid):
         mhd_path = glob.glob(
-            f'../Luna16/subset*/subset*/{series_uid}.mhd'
+            os.path.join(LUNA16, "subset*", "subset*", f"{series_uid}.mhd")
         )[0]
 
         ct_mhd = sitk.ReadImage(mhd_path)
@@ -158,7 +146,6 @@ class Ct:
 def getCt(series_uid):
     return Ct(series_uid)
 
-
 @raw_cache.memoize(typed=True)
 def getCtRawCandidate(series_uid, center_xyz, width_irc):
     ct = getCt(series_uid)
@@ -171,13 +158,13 @@ class LunaDataset(Dataset):
                  val_stride=0,
                  isValSet_bool=None,
                  series_uid=None,
-                 ):
+                 sortby_str='random',
+            ):
         self.candidateInfo_list = copy.copy(getCandidateInfoList())
 
         if series_uid:
             self.candidateInfo_list = [
-                x for x in self.candidateInfo_list
-                if x.series_uid == series_uid
+                x for x in self.candidateInfo_list if x.series_uid == series_uid
             ]
 
         if isValSet_bool:
@@ -187,7 +174,15 @@ class LunaDataset(Dataset):
         elif val_stride > 0:
             del self.candidateInfo_list[::val_stride]
             assert self.candidateInfo_list
-        random.shuffle(self.candidateInfo_list)
+
+        if sortby_str == 'random':
+            random.shuffle(self.candidateInfo_list)
+        elif sortby_str == 'series_uid':
+            self.candidateInfo_list.sort(key=lambda x: (x.series_uid, x.center_xyz))
+        elif sortby_str == 'label_and_size':
+            pass
+        else:
+            raise Exception("Unknown sort: " + repr(sortby_str))
 
         log.info("{!r}: {} {} samples".format(
             self,
@@ -200,30 +195,21 @@ class LunaDataset(Dataset):
 
     def __getitem__(self, ndx):
         candidateInfo_tup = self.candidateInfo_list[ndx]
-        width_irc = (32, 48, 48)  # IRCを32, 48, 48に整形する
+        width_irc = (32, 48, 48)
 
-        # diskcache.Cache().memorize()で指定ファイルに保存する
         candidate_a, center_irc = getCtRawCandidate(
             candidateInfo_tup.series_uid,
             candidateInfo_tup.center_xyz,
             width_irc,
-        )  # 各series_uidに対応する各結節の周りをclipingする
-
-        candidate_t = torch.from_numpy(candidate_a)
-        candidate_t = candidate_t.to(torch.float32)
-        candidate_t = candidate_t.unsqueeze(0)  # batch sizeを追加
+        )
+        candidate_t = torch.from_numpy(candidate_a).to(torch.float32)
+        candidate_t = candidate_t.unsqueeze(0)
 
         pos_t = torch.tensor([
-                # cross entropy lossは1つのクラスに対して1つの出力が必要なため
                 not candidateInfo_tup.isNodule_bool,
                 candidateInfo_tup.isNodule_bool
             ],
             dtype=torch.long,
         )
 
-        return (
-            candidate_t,
-            pos_t,
-            candidateInfo_tup.series_uid,
-            torch.tensor(center_irc),
-        )
+        return candidate_t, pos_t, candidateInfo_tup.series_uid, torch.tensor(center_irc)

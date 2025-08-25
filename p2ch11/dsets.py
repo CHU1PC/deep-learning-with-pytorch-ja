@@ -24,22 +24,26 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 raw_cache = getCache('part2ch11_raw')
+LUNA16 = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "by_chu", "Luna16"
+    )
 
 CandidateInfoTuple = namedtuple(
     'CandidateInfoTuple',
     'isNodule_bool, diameter_mm, series_uid, center_xyz',
 )
 
+
 @functools.lru_cache(1)
 def getCandidateInfoList(requireOnDisk_bool=True):
     # We construct a set with all series_uids that are present on disk.
     # This will let us use the data, even if we haven't downloaded all of
     # the subsets yet.
-    mhd_list = glob.glob('data-unversioned/part2/luna/subset*/*.mhd')
+    mhd_list = glob.glob(os.path.join(LUNA16, "subset*", "subset*", "*.mhd"))
     presentOnDisk_set = {os.path.split(p)[-1][:-4] for p in mhd_list}
 
     diameter_dict = {}
-    with open('data/part2/luna/annotations.csv', "r") as f:
+    with open(os.path.join(LUNA16, "annotations.csv"), "r") as f:
         for row in list(csv.reader(f))[1:]:
             series_uid = row[0]
             annotationCenter_xyz = tuple([float(x) for x in row[1:4]])
@@ -50,7 +54,7 @@ def getCandidateInfoList(requireOnDisk_bool=True):
             )
 
     candidateInfo_list = []
-    with open('data/part2/luna/candidates.csv', "r") as f:
+    with open(os.path.join(LUNA16, 'candidates.csv'), "r") as f:
         for row in list(csv.reader(f))[1:]:
             series_uid = row[0]
 
@@ -81,10 +85,11 @@ def getCandidateInfoList(requireOnDisk_bool=True):
     candidateInfo_list.sort(reverse=True)
     return candidateInfo_list
 
+
 class Ct:
     def __init__(self, series_uid):
         mhd_path = glob.glob(
-            'data-unversioned/part2/luna/subset*/{}.mhd'.format(series_uid)
+            os.path.join(LUNA16, "subset*", "subset*", f"{series_uid}.mhd")
         )[0]
 
         ct_mhd = sitk.ReadImage(mhd_path)
