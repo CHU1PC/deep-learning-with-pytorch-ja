@@ -12,10 +12,11 @@ import torch.nn as nn
 from torch.optim import SGD
 from torch.utils.data import DataLoader
 
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from util.util import enumerateWithEstimate
-from .dsets import LunaDataset
+from dsets import LunaDataset
 from util.logconf import logging
-from .model import LunaModel
+from model import LunaModel
 
 log = logging.getLogger(__name__)
 # log.setLevel(logging.WARN)
